@@ -1,0 +1,12 @@
+<div class="container">
+    <div class="btn-group" role="group" aria-label="Controls">
+        <button type="button" class="btn btn-primary" (click)="capture()">Capture</button>
+        <button type="button" class="btn btn-primary" (click)="create()">Create</button>
+        <button type="button" class="btn btn-primary" (click)="join()">Join</button>
+        <button type="button" class="btn btn-primary" (click)="hangup()">Hangup</button>
+    </div>
+    <div id="videos">
+        <video #localVideo id="localVideo" muted autoplay playsinline></video>
+        <video #remoteVideo id="remoteVideo" autoplay playsinline></video>
+    </div>
+</div>
