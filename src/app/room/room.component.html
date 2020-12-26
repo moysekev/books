@@ -1,12 +1,22 @@
-<div class="container">
+<div>
     <div class="btn-group" role="group" aria-label="Controls">
-        <button type="button" class="btn btn-primary" (click)="capture()">Capture</button>
+        <!-- <button type="button" class="btn btn-primary" (click)="capture()">Capture</button> -->
         <button type="button" class="btn btn-primary" (click)="create()">Create</button>
         <button type="button" class="btn btn-primary" (click)="join()">Join</button>
         <button type="button" class="btn btn-primary" (click)="hangup()">Hangup</button>
     </div>
-    <div id="videos">
-        <video #localVideo id="localVideo" muted autoplay playsinline></video>
-        <video #remoteVideo id="remoteVideo" autoplay playsinline></video>
+    <div id="videos" class="row">
+        <div class="col-sm">
+            1
+            <video #localVideo id="localVideo" width="320" height="240" muted autoplay playsinline></video>
+        </div>
+        <div *ngFor="let peer of peers" class="col-sm">
+            2
+            <app-peer [roomId]="id" [peerId]="peer.id" [localStream]="localStream"></app-peer>
+        </div>
+        <div class="col-sm">
+            3
+            <video #remoteVideo id="remoteVideo" width="320" height="240" autoplay playsinline></video>
+        </div>
     </div>
 </div>

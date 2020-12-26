@@ -19,6 +19,7 @@ import { AuthService } from './services/auth.service';
 import { BooksService } from './services/books.service';
 import { AuthGuardService } from './services/auth-guard.service';
 import { RoomComponent } from './room/room.component';
+import { PeerComponent } from './peer/peer.component';
 
 @NgModule({
   declarations: [
@@ -29,7 +30,8 @@ import { RoomComponent } from './room/room.component';
     SingleBookComponent,
     BookFormComponent,
     HeaderComponent,
-    RoomComponent
+    RoomComponent,
+    PeerComponent
   ],
   imports: [
     BrowserModule,
