@@ -1,22 +1,29 @@
 <div>
-    <div class="btn-group" role="group" aria-label="Controls">
-        <!-- <button type="button" class="btn btn-primary" (click)="capture()">Capture</button> -->
-        <button type="button" class="btn btn-primary" (click)="create()">Create</button>
-        <button type="button" class="btn btn-primary" (click)="join()">Join</button>
-        <button type="button" class="btn btn-primary" (click)="hangup()">Hangup</button>
+    <div class="row">
+        <div class="col-md">
+            <div class="btn-group" role="group" aria-label="Controls">
+                <button type="button" class="btn btn-primary" (click)="capture()">Capture</button>
+                <button type="button" class="btn btn-primary" (click)="create()">Create</button>
+                <button type="button" class="btn btn-primary" (click)="join()">Join</button>
+                <button type="button" class="btn btn-primary" (click)="hangup()">Hangup</button>
+            </div>
+        </div>
     </div>
-    <div id="videos" class="row">
+    <div id="videos" class="row pt-3">
         <div class="col-sm">
-            1
-            <video #localVideo id="localVideo" width="320" height="240" muted autoplay playsinline></video>
+            <!-- style="width: 18rem;" -->
+            <div class="card" style="width: 20rem;">
+                <video #localVideo id="localVideo" muted autoplay playsinline></video>
+                <div class="card-body">
+                    <h5 class="card-title">{{localPeerId}}</h5>
+                    <!-- <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
+                  <a href="#" class="btn btn-primary">Go somewhere</a> -->
+                </div>
+            </div>
         </div>
         <div *ngFor="let peer of peers" class="col-sm">
-            2
-            <app-peer [roomId]="id" [peerId]="peer.id" [localStream]="localStream"></app-peer>
-        </div>
-        <div class="col-sm">
-            3
-            <video #remoteVideo id="remoteVideo" width="320" height="240" autoplay playsinline></video>
+            <app-peer [roomId]="roomId" [localPeerId]="localPeerId" [peerId]="peer.id">
+            </app-peer>
         </div>
     </div>
 </div>

@@ -1,32 +1,20 @@
-import { Component, OnInit, ViewChild, ElementRef, Input } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, Input, OnDestroy } from '@angular/core';
 
 import firebase from 'firebase';
 import 'firebase/database';
 
-import {RoomComponent} from '../room/room.component';
+import { RoomComponent } from '../room/room.component';
 
 @Component({
   selector: 'app-peer',
   templateUrl: './peer.component.html',
   styleUrls: ['./peer.component.css']
 })
-export class PeerComponent implements OnInit {
-
-  configuration = {
-    iceServers: [
-      {
-        urls: [
-          'stun:stun1.l.google.com:19302',
-          'stun:stun2.l.google.com:19302',
-        ],
-      },
-    ],
-    iceCandidatePoolSize: 10,
-  };
+export class PeerComponent implements OnInit, OnDestroy {
 
   @Input() roomId: string;
+  @Input() localPeerId: string;
   @Input() peerId: string;
-  @Input() localStream: MediaStream;
 
   peerConnection: RTCPeerConnection;
   remoteStream: MediaStream = null;
@@ -37,17 +25,10 @@ export class PeerComponent implements OnInit {
 
   ngOnInit(): void {
 
-    this.peerConnection = new RTCPeerConnection(this.configuration);
-    RoomComponent.registerPeerConnectionListeners(this.peerConnection);
+    console.log(`PEER ngOnInt ${this.roomId}/${this.localPeerId}/${this.peerId}`);
 
-    this.localStream.getTracks().forEach(track => {
-      //console.log('TRACK:', track);
-      // TRACK: 
-      // MediaStreamTrack { kind: "audio", id: "{498af056-db75-47de-881b-297ea612f622}", label: "Audio interne Stéréo analogique", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
-      // TRACK: 
-      // MediaStreamTrack { kind: "video", id: "{e5676a77-7099-4b3f-82ea-108a90e7c029}", label: "Integrated_Webcam_HD: Integrate", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
-      this.peerConnection.addTrack(track, this.localStream);
-    });
+    this.peerConnection = new RTCPeerConnection(RoomComponent.configuration);
+    RoomComponent.registerPeerConnectionListeners(this.peerConnection);
 
     // Code for collecting ICE candidates below
     this.peerConnection.addEventListener('icecandidate', event => {
@@ -56,19 +37,21 @@ export class PeerComponent implements OnInit {
         return;
       }
       console.log('Got candidate: ', event.candidate);
-      //callerCandidatesCollection.add(event.candidate.toJSON());
-      //firebase.database().ref('/callerCandidates').set(event.candidate.toJSON());
-      firebase.database().ref('/rooms').child(this.roomId).child(this.peerId).child('callerICE').push().set(event.candidate.toJSON());
+      firebase.database().ref('/rooms').child(this.roomId).child(this.localPeerId).child(this.peerId).child('callerICE').push().set(event.candidate.toJSON());
     });
     // Code for collecting ICE candidates above
 
     this.peerConnection.addEventListener('track', event => {
-      console.log('Got remote track:', event.streams[0]);
+      console.log('Got remote track Event:', this.peerId, event.streams[0]);
+      if (!this.remoteStream) {
+        this.remoteStream = new MediaStream();
+        this.remoteVideoRef.nativeElement.srcObject = this.remoteStream;
+        this.remoteVideoRef.nativeElement.muted = false;
+      }
       event.streams[0].getTracks().forEach(track => {
         console.log('Add a track to the remoteStream:', track);
-        this.remoteStream = new MediaStream();
+        //this.remoteStream = new MediaStream();
         this.remoteStream.addTrack(track);
-        this.remoteVideoRef.nativeElement.srcObject = this.remoteStream;
       });
     });
 
@@ -78,19 +61,17 @@ export class PeerComponent implements OnInit {
       this.peerConnection.setLocalDescription(offer);
       console.log('Created offer:', offer);
 
-      const roomWithOffer = {
-        //'offer': {
+      const db_offer = {
         type: offer.type,
         sdp: offer.sdp,
-        //}
       };
 
-      firebase.database().ref('/rooms').child(this.roomId).child(this.peerId).child('offer').set(roomWithOffer).then(() => {
+      firebase.database().ref('/rooms').child(this.roomId).child(this.localPeerId).child(this.peerId).child('offer').set(db_offer).then(() => {
         console.log(`New OFFER in Room<${this.roomId}> for Peer<${this.peerId}>`);
       });
 
       // Listening for remote session description below
-      var ref = firebase.database().ref(`/rooms/${this.roomId}/${this.peerId}/answer`);
+      var ref = firebase.database().ref(`/rooms/${this.roomId}/${this.localPeerId}/${this.peerId}/answer`);
       // Attach an asynchronous callback to read the data at our posts reference
       ref.on("value", (snapshot) => {
         const answer = snapshot.val();
@@ -109,14 +90,24 @@ export class PeerComponent implements OnInit {
       // Listening for remote session description above
 
       // Listening for remote ICE candidates below
-      firebase.database().ref('/rooms').child(this.roomId).child(this.peerId).child('calleeICE').on("child_added", (snapshot) => {
+      firebase.database().ref('/rooms').child(this.roomId).child(this.peerId).child(this.localPeerId).child('calleeICE').on("child_added", (snapshot) => {
         console.log('calleeICE', snapshot.val());
         this.peerConnection.addIceCandidate(new RTCIceCandidate(snapshot.val()));
       });
       // Listening for remote ICE candidates above
     });
     // Code for creating a room above
-
   }
 
+  ngOnDestroy(): void {
+
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach(track => {
+        track.stop();
+      });
+    }
+    this.remoteVideoRef.nativeElement.srcObject = null;
+
+    this.peerConnection.close();
+  }
 }
