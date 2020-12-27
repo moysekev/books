@@ -16,10 +16,10 @@ export class PeerComponent implements OnInit, OnDestroy {
   @Input() localPeerId: string;
   @Input() peerId: string;
 
+  @ViewChild("remoteVideo") remoteVideoRef: ElementRef;
+
   peerConnection: RTCPeerConnection;
   remoteStream: MediaStream = null;
-
-  @ViewChild("remoteVideo") remoteVideoRef: ElementRef;
 
   constructor() { }
 

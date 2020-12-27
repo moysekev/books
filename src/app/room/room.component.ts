@@ -126,7 +126,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     });
   }
 
-  public uuidv4() {
+  public static uuidv4() {
     return 'xxxx'.replace(/[xy]/g, function (c) {
       var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
       return v.toString(16);
@@ -160,7 +160,7 @@ export class RoomComponent implements OnInit, OnDestroy {
       .then(() => {
         console.log("Remove succeeded.")
 
-        const peerId = this.uuidv4();
+        const peerId = RoomComponent.uuidv4();
         this.localPeerId = peerId;
         console.log(`_peerId=(${peerId})`);
         firebase.database().ref('/rooms').child(id).child('peers').push().set({ id: peerId });
@@ -176,7 +176,7 @@ export class RoomComponent implements OnInit, OnDestroy {
     const id = this.roomId;
     console.log(`::join(${id})`);
 
-    const peerId = this.uuidv4();
+    const peerId = RoomComponent.uuidv4();
     this.localPeerId = peerId;
     console.log(`_peerId=(${peerId})`);
     firebase.database().ref('/rooms').child(id).child('peers').push().set({ id: peerId });
