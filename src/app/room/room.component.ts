@@ -86,14 +86,14 @@ export class RoomComponent implements OnInit, OnDestroy {
           console.log("OFFER : NULL");
           return;
         }
-        console.log(`OFFER ${peer.id}/${this.localPeerId} : `, offer);
+        console.log(`Peer<${peer.id}> OFFER from ${this.localPeerId} : `, offer);
 
         const peerConnection = new RTCPeerConnection(RoomComponent.configuration);
         this.peerConnections.push(peerConnection);
         RoomComponent.registerPeerConnectionListeners(peerConnection);
 
         this.localStream.getTracks().forEach(track => {
-          //console.log('TRACK:', track);
+          console.log(`Peer<${peer.id}> track`, track);
           // TRACK: 
           // MediaStreamTrack { kind: "audio", id: "{498af056-db75-47de-881b-297ea612f622}", label: "Audio interne Stéréo analogique", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
           // TRACK: 
@@ -103,19 +103,19 @@ export class RoomComponent implements OnInit, OnDestroy {
 
         peerConnection.addEventListener('icecandidate', event => {
           if (!event.candidate) {
-            console.log('Got final candidate!');
+            console.log(`Peer<${peer.id}> Got final candidate!`);
             return;
           }
-          console.log('Got candidate: ', event.candidate);
+          console.log(`Peer<${peer.id}> Got candidate: `, event.candidate);
 
           firebase.database().ref('/rooms').child(this.roomId).child(this.localPeerId).child(peer.id).child('calleeICE').push().set(event.candidate.toJSON());
         });
 
         // Code for creating SDP answer below
-        peerConnection.setRemoteDescription(new RTCSessionDescription(offer)).then(() => {
-          const offerOption: RTCOfferOptions = <RTCOfferOptions>{ offerToReceiveAudio: true, offerToReceiveVideo: true };
-          peerConnection.createAnswer(offerOption).then(answer => {
-            console.log('setLocalDescription:', answer);
+        peerConnection.setRemoteDescription(offer).then(() => {
+          const options: RTCOfferOptions = <RTCOfferOptions>{ offerToReceiveAudio: true, offerToReceiveVideo: true };
+          peerConnection.createAnswer(options).then(answer => {
+            console.log(`Peer<${peer.id}> setLocalDescription:`, answer);
             peerConnection.setLocalDescription(answer);
 
             const db_answer = {
@@ -123,7 +123,7 @@ export class RoomComponent implements OnInit, OnDestroy {
               sdp: answer.sdp,
             };
             firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('answer').update(db_answer).then(() => {
-              console.log(`DB ANSWER. Room ID: <${this.roomId}>`);
+              console.log(`Peer<${peer.id}> DB ANSWER. Room ID: <${this.roomId}>`);
             });
 
             // Listening for remote ICE candidates below

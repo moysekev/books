@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, Input, OnDestroy } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, ElementRef, Input, OnDestroy } from '@angular/core';
 
 import firebase from 'firebase';
 import 'firebase/database';
@@ -10,7 +10,7 @@ import { RoomComponent } from '../room/room.component';
   templateUrl: './peer.component.html',
   styleUrls: ['./peer.component.css']
 })
-export class PeerComponent implements OnInit, OnDestroy {
+export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   @Input() roomId: string;
   @Input() localPeerId: string;
@@ -19,13 +19,13 @@ export class PeerComponent implements OnInit, OnDestroy {
   @ViewChild("remoteVideo") remoteVideoRef: ElementRef;
 
   peerConnection: RTCPeerConnection;
-  remoteStream: MediaStream = null;
+  remoteStream: MediaStream = new MediaStream();
 
   constructor() { }
 
   ngOnInit(): void {
 
-    console.log(`PEER ngOnInt ${this.roomId}/${this.localPeerId}/${this.peerId}`);
+    console.log(`Peer<${this.peerId}> : ngOnInt ${this.roomId}/${this.localPeerId}/${this.peerId}`);
 
     this.peerConnection = new RTCPeerConnection(RoomComponent.configuration);
     RoomComponent.registerPeerConnectionListeners(this.peerConnection);
@@ -43,15 +43,13 @@ export class PeerComponent implements OnInit, OnDestroy {
 
     this.peerConnection.addEventListener('track', event => {
       console.log('Got remote track Event:', this.peerId, event.streams[0]);
-      if (!this.remoteStream) {
-        this.remoteStream = new MediaStream();
-        this.remoteVideoRef.nativeElement.srcObject = this.remoteStream;
-        this.remoteVideoRef.nativeElement.muted = false;
-      }
       event.streams[0].getTracks().forEach(track => {
+        // Note seems to be called twice more as necessary (4 instead of 2)
+        // but getTracks().length display shows 1, 2, 2, 2 which indicates
+        // that a same track is not duplicated.
         console.log('Add a track to the remoteStream:', track);
-        //this.remoteStream = new MediaStream();
         this.remoteStream.addTrack(track);
+        console.log(`Peer<${this.peerId}> number of tracks : ${this.remoteStream.getTracks().length}`);
       });
     });
 
@@ -78,8 +76,7 @@ export class PeerComponent implements OnInit, OnDestroy {
         if (answer == null) return;
         console.log('Got remote description: ', answer);
         if (!this.peerConnection.currentRemoteDescription) {
-          const rtcSessionDescription = new RTCSessionDescription(answer);
-          this.peerConnection.setRemoteDescription(rtcSessionDescription).then(() => {
+          this.peerConnection.setRemoteDescription(answer).then(() => {
             console.log('setRemoteDescription DONE ', answer);
           });
         }
@@ -97,6 +94,12 @@ export class PeerComponent implements OnInit, OnDestroy {
       // Listening for remote ICE candidates above
     });
     // Code for creating a room above
+  }
+
+  ngAfterViewInit() {
+    // remote stream is attached to DOM during ngAfterViewInit because @ViewChild is not bound before this stage
+    this.remoteVideoRef.nativeElement.srcObject = this.remoteStream;
+    this.remoteVideoRef.nativeElement.muted = false;
   }
 
   ngOnDestroy(): void {
