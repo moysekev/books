@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
 
 import firebase from 'firebase';
 import 'firebase/database';
@@ -33,6 +33,19 @@ export class RoomComponent implements OnInit, OnDestroy {
   peerConnections: Array<RTCPeerConnection> = [];
 
   constructor() { }
+
+  // @HostListener('window:unload', ['$event'])
+  // unloadHandler(event) {
+  //   console.log("unloadHandler");
+  // }
+
+  // Use BEFORE unload to hangup
+  // This is usefull if user closes the tab, or refreshes the page
+  @HostListener('window:beforeunload', ['$event'])
+  beforeUnloadHandler(event) {
+    console.log("beforeUnloadHandler");
+    this.doHangUp();
+  }
 
   ngOnInit(): void {
   }
@@ -203,9 +216,11 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   private doHangUp() {
-    this.localStream.getTracks().forEach(track => {
-      track.stop();
-    });
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => {
+        track.stop();
+      });
+    }
     this.localVideoRef.nativeElement.srcObject = null;
 
     while (this.peerConnections.length) {
@@ -216,14 +231,17 @@ export class RoomComponent implements OnInit, OnDestroy {
     // empty peers
     this.peers.length = 0;
 
-    RoomComponent.deletePeerFromDBList(this.roomId, this.localPeerId);
-
     // clean up database
-    firebase.database().ref("/rooms").child(this.roomId).child(this.localPeerId).remove();
+    if (this.roomId && this.localPeerId) {
+      RoomComponent.deletePeerFromDBList(this.roomId, this.localPeerId);
+      firebase.database().ref("/rooms").child(this.roomId).child(this.localPeerId).remove();
+    }
 
     // it is important to unregister from the 'on' set on peers because if user hangs up and rejoin/recreate
     // it would add listeners while some are already set and would trigger unexpected results
-    firebase.database().ref('/rooms').child(this.roomId).child('peers').off();
+    if (this.roomId) {
+      firebase.database().ref('/rooms').child(this.roomId).child('peers').off();
+    }
 
     // reset local peer Id only at the end because it is used in previous lines
     this.localPeerId = null;
