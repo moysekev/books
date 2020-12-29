@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { ActivatedRoute } from "@angular/router";
 
 import firebase from 'firebase';
 import 'firebase/database';
@@ -9,7 +10,7 @@ import 'firebase/firestore';
   templateUrl: './room.component.html',
   styleUrls: ['./room.component.css']
 })
-export class RoomComponent implements OnInit, OnDestroy {
+export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
 
   static
     configuration = {
@@ -26,13 +27,17 @@ export class RoomComponent implements OnInit, OnDestroy {
 
   @ViewChild("localVideo") localVideoRef: ElementRef;
 
-  roomId: string = 'TEST';
+  roomId: string;
   localPeerId: string;
   localStream: MediaStream = null;
   peers: Array<any> = [];
   peerConnections: Array<RTCPeerConnection> = [];
 
-  constructor() { }
+  // constructor() { }
+
+  constructor(private route: ActivatedRoute) {
+
+  }
 
   // @HostListener('window:unload', ['$event'])
   // unloadHandler(event) {
@@ -48,6 +53,23 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.roomId = this.route.snapshot.paramMap.get("id");
+  }
+
+  ngAfterViewInit() {
+    navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    }).then(stream => {
+      this.localStream = stream;
+      //this.localVideoRef.nativeElement.autoplay = true;
+      // Seems this has to be set by code to work :
+      this.localVideoRef.nativeElement.muted = true;
+      // Attach stream
+      this.localVideoRef.nativeElement.srcObject = stream;
+
+      this.join();
+    });
   }
 
   ngOnDestroy(): void {
@@ -140,14 +162,14 @@ export class RoomComponent implements OnInit, OnDestroy {
   }
 
   public static uuidv4() {
-    return 'xxxx'.replace(/[xy]/g, function (c) {
+    // return 'xxxx'.replace(/[xy]/g, function (c) {
+    //   var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    //   return v.toString(16);
+    // });
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
       var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
       return v.toString(16);
     });
-    // return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    // 	var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-    // 	return v.toString(16);
-    // });
   }
 
   capture(): void {
@@ -167,23 +189,23 @@ export class RoomComponent implements OnInit, OnDestroy {
     });
   }
 
-  create(): void {
-    const id = this.roomId;
-    firebase.database().ref('/rooms').child(id).remove()
-      .then(() => {
-        console.log("Remove succeeded.")
+  // create(): void {
+  //   const id = this.roomId;
+  //   firebase.database().ref('/rooms').child(id).remove()
+  //     .then(() => {
+  //       console.log("Remove succeeded.")
 
-        const peerId = RoomComponent.uuidv4();
-        this.localPeerId = peerId;
-        console.log(`_peerId=(${peerId})`);
-        firebase.database().ref('/rooms').child(id).child('peers').push().set({ id: peerId });
+  //       const peerId = RoomComponent.uuidv4();
+  //       this.localPeerId = peerId;
+  //       console.log(`_peerId=(${peerId})`);
+  //       firebase.database().ref('/rooms').child(id).child('peers').push().set({ id: peerId });
 
-        this.listen();
-      })
-      .catch((error) => {
-        console.log("Remove failed: " + error.message)
-      });
-  }
+  //       this.listen();
+  //     })
+  //     .catch((error) => {
+  //       console.log("Remove failed: " + error.message)
+  //     });
+  // }
 
   join(): void {
     const id = this.roomId;
