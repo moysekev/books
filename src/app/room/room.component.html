@@ -1,27 +1,34 @@
 <div>
-    <div class="row">
-        <div class="col-md">
-            <div class="btn-group" role="group" aria-label="Controls">
-                <!-- <button type="button" class="btn btn-primary" (click)="capture()">Capture</button> -->
-                <!-- <button type="button" class="btn btn-primary" (click)="create()">Create</button> -->
-                <!-- <button type="button" class="btn btn-primary" (click)="join()">Join</button> -->
-                <button type="button" class="btn btn-primary" (click)="hangup()">Hangup</button>
-            </div>
+    <form class="row row-cols-lg-auto g-3 align-items-center">
+        <div class="col-12">
+            <mat-form-field appearance="outline">
+                <mat-label>Name</mat-label>
+                <input matInput placeholder="Name" [formControl]="name">
+                <mat-icon matSuffix>sentiment_very_satisfied</mat-icon>
+                <mat-hint>Enter your name</mat-hint>
+            </mat-form-field>
         </div>
-    </div>
+        <div class="col-12">
+            <button mat-raised-button color="primary" (click)="hangup()">Hangup</button>
+        </div>
+    </form>
+
     <div id="videos" class="row pt-3">
-        <div class="col-sm">
+        <div class="col-sm-12 col-md-6 col-lg-3">
             <!-- style="width: 18rem;" -->
-            <div class="card" style="width: 20rem;">
+            <!-- <div class="card" style="width: 20rem;"> -->
+            <div class="embed-responsive embed-responsive-4by3">
                 <video #localVideo id="localVideo" muted autoplay playsinline></video>
-                <div class="card-body">
-                    <h5 class="card-title">{{localPeerId}}</h5>
-                    <!-- <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
-                  <a href="#" class="btn btn-primary">Go somewhere</a> -->
-                </div>
             </div>
+            <h5 *ngIf="!name.value">{{localPeerId}}</h5>
+            <h5 *ngIf="name.value">{{name.value}}</h5>
+            <!-- <h5 class="card-title">{{localPeerId}}</h5> -->
+            <!-- <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
+                  <a href="#" class="btn btn-primary">Go somewhere</a> -->
+            <!-- </div> -->
+            <!-- </div> -->
         </div>
-        <div *ngFor="let peer of peers" class="col-sm">
+        <div *ngFor="let peer of peers" class="col-sm-12 col-md-6 col-lg-3">
             <app-peer [roomId]="roomId" [localPeerId]="localPeerId" [peerId]="peer.id">
             </app-peer>
         </div>

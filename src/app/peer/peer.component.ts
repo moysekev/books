@@ -16,6 +16,8 @@ export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
   @Input() localPeerId: string;
   @Input() peerId: string;
 
+  name: string = null;
+
   @ViewChild("remoteVideo") remoteVideoRef: ElementRef;
 
   peerConnection: RTCPeerConnection;
@@ -29,6 +31,11 @@ export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.peerConnection = new RTCPeerConnection(RoomComponent.configuration);
     RoomComponent.registerPeerConnectionListeners(this.peerConnection);
+
+    // listen to name change
+    firebase.database().ref(`/rooms/${this.roomId}/${this.peerId}`).child('name').on("value", (snapshot) => {
+      this.name = snapshot.val();
+    });
 
     // Code for collecting ICE candidates below
     this.peerConnection.addEventListener('icecandidate', event => {

@@ -1,5 +1,6 @@
 import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { ActivatedRoute } from "@angular/router";
+import { FormControl } from '@angular/forms';
 
 import firebase from 'firebase';
 import 'firebase/database';
@@ -27,24 +28,39 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
 
   @ViewChild("localVideo") localVideoRef: ElementRef;
 
+  name = new FormControl('');
+
   roomId: string;
   localPeerId: string;
   localStream: MediaStream = null;
   peers: Array<any> = [];
   peerConnections: Array<RTCPeerConnection> = [];
 
-  // constructor() { }
-
   constructor(private route: ActivatedRoute) {
+
+    this.name.valueChanges.subscribe((selectedValue) => {
+      console.log(selectedValue); 
+      console.log("Name change " + this.name.value);
+      firebase.database().ref(`/rooms/${this.roomId}/${this.localPeerId}`).child('name').set(this.name.value);
+    });
+
+    this.name.registerOnChange(() => {
+      
+    });
 
   }
 
-  // @HostListener('window:unload', ['$event'])
-  // unloadHandler(event) {
-  //   console.log("unloadHandler");
-  // }
+  // Note : beforeUnloadHandler alone does not work on android Chrome
+  // seems it requires unloadHandler to do the same to work evrywhere...
+  // https://stackoverflow.com/questions/35779372/window-onbeforeunload-doesnt-trigger-on-android-chrome-alt-solution
+  //
+  @HostListener('window:unload', ['$event'])
+  unloadHandler(event) {
+    console.log("unloadHandler");
+    this.doHangUp();
+  }
 
-  // Use BEFORE unload to hangup
+  // Use BEFORE unload to hangup (works for Firefox at least)
   // This is usefull if user closes the tab, or refreshes the page
   @HostListener('window:beforeunload', ['$event'])
   beforeUnloadHandler(event) {

@@ -29,3 +29,14 @@ To get more help on the Angular CLI use `ng help` or go check out the [Angular C
 ## Save
 
 Run `tar --exclude books/node_modules --exclude books/.git -czvf books_20201227.tgz books`
+
+
+## Local run with ssl :
+
+Run `ng serve --host 0.0.0.0 --ssl`
+
+## To deploy to docs :
+
+Run `ng build --prod --output-path docs --base-href /books/`
+For github pages, then :
+Run `cp docs/index.html docs/404.html`

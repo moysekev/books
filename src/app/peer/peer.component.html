@@ -1,9 +1,11 @@
-<div class="card" style="width: 20rem;">
-    <!-- width="320" height="240"  -->
-    <video #remoteVideo id="{{peerId}}" autoplay playsinline></video>
-    <div class="card-body">
-        <h5 class="card-title">{{peerId}}</h5>
-        <!-- <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
+<!-- <div class="card" style="width: 20rem;"> -->
+<div>
+  <!-- width="320" height="240"  -->
+  <video #remoteVideo id="{{peerId}}" autoplay playsinline></video>
+  <!-- <div class="card-body"> -->
+  <h5 *ngIf="!name">{{peerId}}</h5>
+  <h5 *ngIf="name">{{name}}</h5>
+  <!-- <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
       <a href="#" class="btn btn-primary">Go somewhere</a> -->
-    </div>
+  <!-- </div> -->
 </div>
