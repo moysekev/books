@@ -34,18 +34,20 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
   localPeerId: string;
   localStream: MediaStream = null;
   peers: Array<any> = [];
-  peerConnections: Array<RTCPeerConnection> = [];
+  //peerConnections: Array<RTCPeerConnection> = [];
+
+  page: Array<any> = [];
 
   constructor(private route: ActivatedRoute) {
 
     this.name.valueChanges.subscribe((selectedValue) => {
-      console.log(selectedValue); 
+      console.log(selectedValue);
       console.log("Name change " + this.name.value);
       firebase.database().ref(`/rooms/${this.roomId}/${this.localPeerId}`).child('name').set(this.name.value);
     });
 
     this.name.registerOnChange(() => {
-      
+
     });
 
   }
@@ -93,11 +95,98 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   removePeer(id: string) {
+
+    this.undisplayPeer(id);
+
     for (var i = 0; i < this.peers.length; i++) {
       if (this.peers[i]['id'] === id) {
-        this.peers.splice(i, 1);
+        const removed = this.peers.splice(i, 1);
       }
     }
+
+    console.log(`Removed Peer<${id}>`);
+  }
+
+  private undisplayPeer(id: string) {
+    for (var i = 0; i < this.page.length; i++) {
+      if (this.page[i]['id'] === id) {
+        const removed = this.page.splice(i, 1);
+        if (removed[0].rtcPeerConnection) {
+          console.log(`CLOSING RTCPeerConnection for removed PeerPeer<${removed[0].id}>`);
+          removed[0].rtcPeerConnection.close();
+        }
+      }
+    }
+  }
+
+  private displayPeer(peer: any) {
+
+    if (this.page.length >= 3) {
+      const peerToHide = this.page[this.page.length - 1];
+      this.undisplayPeer(peerToHide.id);
+    }
+
+    this.page.push(peer);
+
+    // listen to offer from remote TO peer
+    firebase.database().ref(`/rooms/${this.roomId}/${peer.id}/${this.localPeerId}/offer`).on("value", (snapshot) => {
+      const offer = snapshot.val();
+      if (offer == null) {
+        console.log("OFFER : NULL");
+        return;
+      }
+      console.log(`Peer<${peer.id}> OFFER from ${this.localPeerId} : `, offer);
+
+      const peerConnection = new RTCPeerConnection(RoomComponent.configuration);
+      // store rtcPeerConnection into peer
+      peer.rtcPeerConnection = peerConnection;
+      //this.peerConnections.push(peerConnection);
+      RoomComponent.registerPeerConnectionListeners(peerConnection);
+
+      this.localStream.getTracks().forEach(track => {
+        console.log(`Peer<${peer.id}> track`, track);
+        // TRACK: 
+        // MediaStreamTrack { kind: "audio", id: "{498af056-db75-47de-881b-297ea612f622}", label: "Audio interne Stéréo analogique", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
+        // TRACK: 
+        // MediaStreamTrack { kind: "video", id: "{e5676a77-7099-4b3f-82ea-108a90e7c029}", label: "Integrated_Webcam_HD: Integrate", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
+        peerConnection.addTrack(track, this.localStream);
+      });
+
+      peerConnection.addEventListener('icecandidate', event => {
+        if (!event.candidate) {
+          console.log(`Peer<${peer.id}> Got final candidate!`);
+          return;
+        }
+        console.log(`Peer<${peer.id}> Got candidate: `, event.candidate);
+
+        firebase.database().ref('/rooms').child(this.roomId).child(this.localPeerId).child(peer.id).child('calleeICE').push().set(event.candidate.toJSON());
+      });
+
+      // Code for creating SDP answer below
+      peerConnection.setRemoteDescription(offer).then(() => {
+        const options: RTCOfferOptions = <RTCOfferOptions>{ offerToReceiveAudio: true, offerToReceiveVideo: true };
+        peerConnection.createAnswer(options).then(answer => {
+          console.log(`Peer<${peer.id}> setLocalDescription:`, answer);
+          peerConnection.setLocalDescription(answer);
+
+          const db_answer = {
+            type: answer.type,
+            sdp: answer.sdp,
+          };
+          firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('answer').update(db_answer).then(() => {
+            console.log(`Peer<${peer.id}> DB ANSWER. Room ID: <${this.roomId}>`);
+          });
+
+          // Listening for remote ICE candidates below
+          firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('callerICE').on("child_added", (snapshot) => {
+            console.log('callerICE', snapshot.val());
+            peerConnection.addIceCandidate(new RTCIceCandidate(snapshot.val()));
+          });
+          // Listening for remote ICE candidates above
+
+        });
+      });
+    });
   }
 
   private listen() {
@@ -115,65 +204,8 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       console.log('PEER', peer);
       if (peer.id !== this.localPeerId) {
         this.peers.push(peer);
+        this.displayPeer(peer);
       }
-
-      // listen to offer from remote TO peer
-      firebase.database().ref(`/rooms/${this.roomId}/${peer.id}/${this.localPeerId}/offer`).on("value", (snapshot) => {
-        const offer = snapshot.val();
-        if (offer == null) {
-          console.log("OFFER : NULL");
-          return;
-        }
-        console.log(`Peer<${peer.id}> OFFER from ${this.localPeerId} : `, offer);
-
-        const peerConnection = new RTCPeerConnection(RoomComponent.configuration);
-        this.peerConnections.push(peerConnection);
-        RoomComponent.registerPeerConnectionListeners(peerConnection);
-
-        this.localStream.getTracks().forEach(track => {
-          console.log(`Peer<${peer.id}> track`, track);
-          // TRACK: 
-          // MediaStreamTrack { kind: "audio", id: "{498af056-db75-47de-881b-297ea612f622}", label: "Audio interne Stéréo analogique", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
-          // TRACK: 
-          // MediaStreamTrack { kind: "video", id: "{e5676a77-7099-4b3f-82ea-108a90e7c029}", label: "Integrated_Webcam_HD: Integrate", enabled: true, muted: false, onmute: null, onunmute: null, readyState: "live", onended: null }
-          peerConnection.addTrack(track, this.localStream);
-        });
-
-        peerConnection.addEventListener('icecandidate', event => {
-          if (!event.candidate) {
-            console.log(`Peer<${peer.id}> Got final candidate!`);
-            return;
-          }
-          console.log(`Peer<${peer.id}> Got candidate: `, event.candidate);
-
-          firebase.database().ref('/rooms').child(this.roomId).child(this.localPeerId).child(peer.id).child('calleeICE').push().set(event.candidate.toJSON());
-        });
-
-        // Code for creating SDP answer below
-        peerConnection.setRemoteDescription(offer).then(() => {
-          const options: RTCOfferOptions = <RTCOfferOptions>{ offerToReceiveAudio: true, offerToReceiveVideo: true };
-          peerConnection.createAnswer(options).then(answer => {
-            console.log(`Peer<${peer.id}> setLocalDescription:`, answer);
-            peerConnection.setLocalDescription(answer);
-
-            const db_answer = {
-              type: answer.type,
-              sdp: answer.sdp,
-            };
-            firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('answer').update(db_answer).then(() => {
-              console.log(`Peer<${peer.id}> DB ANSWER. Room ID: <${this.roomId}>`);
-            });
-
-            // Listening for remote ICE candidates below
-            firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('callerICE').on("child_added", (snapshot) => {
-              console.log('callerICE', snapshot.val());
-              peerConnection.addIceCandidate(new RTCIceCandidate(snapshot.val()));
-            });
-            // Listening for remote ICE candidates above
-
-          });
-        });
-      });
     });
   }
 
@@ -261,13 +293,21 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.localVideoRef.nativeElement.srcObject = null;
 
-    while (this.peerConnections.length) {
-      var peerConnection = this.peerConnections.pop();
-      peerConnection.close();
-    }
-
+    // while (this.peerConnections.length) {
+    //   var peerConnection = this.peerConnections.pop();
+    //   peerConnection.close();
+    // }
+    // REPLACED BY :
     // empty peers
-    this.peers.length = 0;
+    //this.peers.length = 0;
+    // closing rtcPeerConnection in the meantime
+    while (this.peers.length) {
+      const peer = this.peers.pop();
+      if (peer.rtcPeerConnection) {
+        console.log("CLOSING RTCPeerConnection for " + peer.id);
+        peer.rtcPeerConnection.close();
+      }
+    }
 
     // clean up database
     if (this.roomId && this.localPeerId) {
