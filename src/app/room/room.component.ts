@@ -34,9 +34,11 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
   localPeerId: string;
   localStream: MediaStream = null;
   peers: Array<any> = [];
-  //peerConnections: Array<RTCPeerConnection> = [];
-
   page: Array<any> = [];
+
+  nbPeersPerPage = 2;
+
+  //peerConnections: Array<RTCPeerConnection> = [];
 
   constructor(private route: ActivatedRoute) {
 
@@ -72,6 +74,7 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     this.roomId = this.route.snapshot.paramMap.get("id");
+    this.localPeerId = RoomComponent.uuidv4();
   }
 
   ngAfterViewInit() {
@@ -85,51 +88,106 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       this.localVideoRef.nativeElement.muted = true;
       // Attach stream
       this.localVideoRef.nativeElement.srcObject = stream;
-
       this.join();
+    }).catch(err => {
+      alert("getUserMedia not supported by your web browser or Operating system version" + err);
     });
+  }
+
+  join(): void {
+    console.log(`join(), localPeerId<${this.localPeerId}>`);
+    firebase.database().ref('/rooms').child(this.roomId).child('peers').push().set({ id: this.localPeerId });
+    this.listen();
   }
 
   ngOnDestroy(): void {
     this.doHangUp();
   }
 
-  removePeer(id: string) {
-
-    this.undisplayPeer(id);
-
+  private removePeer(id: string) {
     for (var i = 0; i < this.peers.length; i++) {
       if (this.peers[i]['id'] === id) {
         const removed = this.peers.splice(i, 1);
-      }
-    }
+        const removedPeer = removed[0];
 
-    console.log(`Removed Peer<${id}>`);
-  }
+        if (removedPeer.onOffer) {
+          console.log(`ROOM offing ${removedPeer.id}/${this.localPeerId} onOffer`);
+          firebase.database().ref(`/rooms/${this.roomId}/${removedPeer.id}/${this.localPeerId}/offer`).off("value", removedPeer.onOffer);
+          delete removedPeer.onOffer;
+        }
+        if (removedPeer.onCallerICE) {
+          console.log(`ROOM offing ${removedPeer.id}/${this.localPeerId} onCallerICE`);
+          firebase.database().ref('/rooms').child(this.roomId).child(removedPeer.id).child(this.localPeerId).child('callerICE').off("child_added", removedPeer.onCallerICE);
+          delete removedPeer.onCallerICE;
+        }
 
-  private undisplayPeer(id: string) {
-    for (var i = 0; i < this.page.length; i++) {
-      if (this.page[i]['id'] === id) {
-        const removed = this.page.splice(i, 1);
-        if (removed[0].rtcPeerConnection) {
-          console.log(`CLOSING RTCPeerConnection for removed PeerPeer<${removed[0].id}>`);
-          removed[0].rtcPeerConnection.close();
+        if (removedPeer.rtcPeerConnection) {
+          console.log(`CLOSING RTCPeerConnection for removed PeerPeer<${removedPeer.id}>`);
+          removedPeer.rtcPeerConnection.close();
+          delete removedPeer.rtcPeerConnection;
         }
       }
     }
+    console.log(`Removed Peer<${id}>`);
   }
 
-  private displayPeer(peer: any) {
-
-    if (this.page.length >= 3) {
-      const peerToHide = this.page[this.page.length - 1];
-      this.undisplayPeer(peerToHide.id);
+  private replacePeer(id: string, peer: any) {
+    for (var i = 0; i < this.peers.length; i++) {
+      if (this.peers[i]['id'] === id) {
+        this.peers[i] = peer;
+      }
     }
+    console.log(`Replaced Peer<${id}>`);
+  }
 
-    this.page.push(peer);
+  private addPeer(peer: any) {
+    if (this.peers.length >= this.nbPeersPerPage) {
+      // replace last peer of the page by new one
+      // so that any new comer is displayed
+      const peerToHide = this.peers[this.nbPeersPerPage - 1];
 
-    // listen to offer from remote TO peer
-    firebase.database().ref(`/rooms/${this.roomId}/${peer.id}/${this.localPeerId}/offer`).on("value", (snapshot) => {
+      //this.replacePeer(peerToHide.id, peer);
+      this.peers.splice(this.nbPeersPerPage - 1, 0, peer);
+
+      if (peerToHide.onOffer) {
+        console.log(`ROOM offing ${peerToHide.id}/${this.localPeerId} onOffer`);
+        firebase.database().ref(`/rooms/${this.roomId}/${peerToHide.id}/${this.localPeerId}/offer`).off("value", peerToHide.onOffer);
+        delete peerToHide.onOffer;
+      }
+      if (peerToHide.onCallerICE) {
+        console.log(`ROOM offing ${peerToHide.id}/${this.localPeerId} onCallerICE`);
+        firebase.database().ref('/rooms').child(this.roomId).child(peerToHide.id).child(this.localPeerId).child('callerICE').off("child_added", peerToHide.onCallerICE);
+        delete peerToHide.onCallerICE;
+      }
+
+      // since the replaced peer is no more displayed, close corresponding rtcPeerConnection
+      if (peerToHide.rtcPeerConnection) {
+        console.log(`CLOSING RTCPeerConnection for replaced Peer<${peerToHide.id}>`);
+        peerToHide.rtcPeerConnection.close();
+        // then delete property so that if peer goes back in page we know that we should recreate a connection
+        // for it
+        delete peerToHide.rtcPeerConnection;
+      }
+
+      // setting back peerToHide at end of peers
+      //this.peers.push(peerToHide);
+    }
+    else {
+      this.peers.push(peer);
+    }
+  }
+
+  private connectPagePeers() {
+    for (const peer of this.page) {
+      if (!peer.rtcPeerConnection) {
+        this.connectToPeer(peer);
+      }
+    }
+  }
+
+  private connectToPeer(peer: any) {
+
+    const onOffer = (snapshot: any) => {
       const offer = snapshot.val();
       if (offer == null) {
         console.log("OFFER : NULL");
@@ -141,7 +199,7 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       // store rtcPeerConnection into peer
       peer.rtcPeerConnection = peerConnection;
       //this.peerConnections.push(peerConnection);
-      RoomComponent.registerPeerConnectionListeners(peerConnection);
+      RoomComponent.registerPeerConnectionListeners(peerConnection, peer.id);
 
       this.localStream.getTracks().forEach(track => {
         console.log(`Peer<${peer.id}> track`, track);
@@ -167,46 +225,69 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
         const options: RTCOfferOptions = <RTCOfferOptions>{ offerToReceiveAudio: true, offerToReceiveVideo: true };
         peerConnection.createAnswer(options).then(answer => {
           console.log(`Peer<${peer.id}> setLocalDescription:`, answer);
-          peerConnection.setLocalDescription(answer);
-
+          peerConnection.setLocalDescription(answer).then().catch((error) => {
+            console.error("setLocalDescription(answer) CAUGHT : " + error);
+          });
           const db_answer = {
             type: answer.type,
             sdp: answer.sdp,
           };
           firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('answer').update(db_answer).then(() => {
             console.log(`Peer<${peer.id}> DB ANSWER. Room ID: <${this.roomId}>`);
+          }).catch((error) => {
+            console.error("CAUGHT" + error);
           });
 
           // Listening for remote ICE candidates below
-          firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('callerICE').on("child_added", (snapshot) => {
+          const onCallerICE = (snapshot: any) => {
             console.log('callerICE', snapshot.val());
             peerConnection.addIceCandidate(new RTCIceCandidate(snapshot.val()));
-          });
+          };
+          peer.onCallerICE = onCallerICE;
+          firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('callerICE').on("child_added", onCallerICE);
           // Listening for remote ICE candidates above
 
+        }).catch((error) => {
+          console.error("CAUGHT" + error);
         });
+      }).catch((error) => {
+        console.error("CAUGHT" + error);
       });
-    });
+    };
+
+    peer.onOffer = onOffer;
+
+    // listen to offer from remote TO peer
+    firebase.database().ref(`/rooms/${this.roomId}/${peer.id}/${this.localPeerId}/offer`).on("value", onOffer);
   }
 
+  private on_child_removed: any;
+  private on_child_added: any;
+
   private listen() {
-    firebase.database().ref('/rooms').child(this.roomId).child('peers').on("child_removed", (snapshot: any) => {
+
+    this.on_child_removed = (snapshot: any) => {
       const peer = snapshot.val();
       console.log(`Child ${peer.id} removed`);
       this.removePeer(peer.id);
-
+      this.page = this.peers.slice(0, Math.min(this.nbPeersPerPage, this.peers.length));
+      this.connectPagePeers();
       // cleanup database
       firebase.database().ref("/rooms").child(this.roomId).child(this.localPeerId).child(peer.id).remove();
-    });
+    };
+    firebase.database().ref('/rooms').child(this.roomId).child('peers').on("child_removed", this.on_child_removed);
 
-    firebase.database().ref('/rooms').child(this.roomId).child('peers').on("child_added", (snapshot) => {
+    this.on_child_added = (snapshot: any) => {
       const peer: any = snapshot.val();
       console.log('PEER', peer);
       if (peer.id !== this.localPeerId) {
-        this.peers.push(peer);
-        this.displayPeer(peer);
+        //this.peers.push(peer);
+        this.addPeer(peer);
+        this.page = this.peers.slice(0, Math.min(this.nbPeersPerPage, this.peers.length));
+        this.connectPagePeers();
       }
-    });
+    };
+    firebase.database().ref('/rooms').child(this.roomId).child('peers').on("child_added", this.on_child_added);
   }
 
   public static uuidv4() {
@@ -234,6 +315,8 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       this.localVideoRef.nativeElement.muted = true;
       // Attach stream
       this.localVideoRef.nativeElement.srcObject = stream;
+    }).catch((error) => {
+      console.error("CAUGHT" + error);
     });
   }
 
@@ -255,18 +338,6 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
   //     });
   // }
 
-  join(): void {
-    const id = this.roomId;
-    console.log(`::join(${id})`);
-
-    const peerId = RoomComponent.uuidv4();
-    this.localPeerId = peerId;
-    console.log(`_peerId=(${peerId})`);
-    firebase.database().ref('/rooms').child(id).child('peers').push().set({ id: peerId });
-
-    this.listen();
-  }
-
   static deletePeerFromDBList(roomId: string, id: string) {
     var query = firebase.database().ref("/rooms").child(roomId).child('peers').orderByKey();
     query.once("value")
@@ -282,6 +353,8 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
             return true;
           }
         });
+      }).catch((error) => {
+        console.error("CAUGHT" + error);
       });
   }
 
@@ -292,6 +365,22 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       });
     }
     this.localVideoRef.nativeElement.srcObject = null;
+
+    this.page.length = 0;
+
+    // clean up database
+    if (this.roomId && this.localPeerId) {
+      RoomComponent.deletePeerFromDBList(this.roomId, this.localPeerId);
+      firebase.database().ref("/rooms").child(this.roomId).child(this.localPeerId).remove();
+    }
+
+    // it is important to unregister from the 'on' set on peers because if user hangs up and rejoin/recreate
+    // it would add listeners while some are already set and would trigger unexpected results
+    if (this.roomId) {
+      console.log('Offing from peers child_removed, child_added');
+      firebase.database().ref('/rooms').child(this.roomId).child('peers').off('child_removed', this.on_child_removed);
+      firebase.database().ref('/rooms').child(this.roomId).child('peers').off('child_added', this.on_child_added);
+    }
 
     // while (this.peerConnections.length) {
     //   var peerConnection = this.peerConnections.pop();
@@ -309,18 +398,6 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }
 
-    // clean up database
-    if (this.roomId && this.localPeerId) {
-      RoomComponent.deletePeerFromDBList(this.roomId, this.localPeerId);
-      firebase.database().ref("/rooms").child(this.roomId).child(this.localPeerId).remove();
-    }
-
-    // it is important to unregister from the 'on' set on peers because if user hangs up and rejoin/recreate
-    // it would add listeners while some are already set and would trigger unexpected results
-    if (this.roomId) {
-      firebase.database().ref('/rooms').child(this.roomId).child('peers').off();
-    }
-
     // reset local peer Id only at the end because it is used in previous lines
     this.localPeerId = null;
   }
@@ -329,23 +406,23 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
     this.doHangUp();
   }
 
-  static registerPeerConnectionListeners(peerConnection: RTCPeerConnection) {
+  static registerPeerConnectionListeners(peerConnection: RTCPeerConnection, id: string) {
     peerConnection.addEventListener('icegatheringstatechange', () => {
       console.log(
-        `ICE gathering state changed: ${peerConnection.iceGatheringState}`);
+        `CONNECTION<${id}> ICE gathering state changed: ${peerConnection.iceGatheringState}`);
     });
 
     peerConnection.addEventListener('connectionstatechange', () => {
-      console.log(`Connection state change: ${peerConnection.connectionState}`);
+      console.log(`CONNECTION<${id}> Connection state change: ${peerConnection.connectionState}`);
     });
 
     peerConnection.addEventListener('signalingstatechange', () => {
-      console.log(`Signaling state change: ${peerConnection.signalingState}`);
+      console.log(`CONNECTION<${id}> Signaling state change: ${peerConnection.signalingState}`);
     });
 
     peerConnection.addEventListener('iceconnectionstatechange ', () => {
       console.log(
-        `ICE connection state change: ${peerConnection.iceConnectionState}`);
+        `CONNECTION<${id}> ICE connection state change: ${peerConnection.iceConnectionState}`);
     });
   }
 
