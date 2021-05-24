@@ -13,8 +13,7 @@ import 'firebase/firestore';
 })
 export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
 
-  static
-  configuration = {
+  static configuration = {
     iceServers: [
       {
         urls: [
@@ -38,20 +37,14 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
 
   nbPeersPerPage = 2;
 
-  //peerConnections: Array<RTCPeerConnection> = [];
-
   constructor(private route: ActivatedRoute) {
-
     this.name.valueChanges.subscribe((selectedValue) => {
       console.log(selectedValue);
       console.log("Name change " + this.name.value);
       firebase.database().ref(`/rooms/${this.roomId}/${this.localPeerId}`).child('name').set(this.name.value);
     });
-
     this.name.registerOnChange(() => {
-
     });
-
   }
 
   // Note : beforeUnloadHandler alone does not work on android Chrome
@@ -81,7 +74,7 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
     navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
-    }).then(stream => {
+    }).then((stream: MediaStream) => {
       this.localStream = stream;
       //this.localVideoRef.nativeElement.autoplay = true;
       // Seems this has to be set by code to work :
@@ -90,7 +83,8 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       this.localVideoRef.nativeElement.srcObject = stream;
       this.join();
     }).catch(err => {
-      alert("getUserMedia not supported by your web browser or Operating system version" + err);
+      console.log("getUserMedia error", err);
+      //alert("getUserMedia not supported by your web browser or Operating system version" + err);
     });
   }
 
@@ -245,7 +239,7 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
           };
           peer.onCallerICE = onCallerICE;
           firebase.database().ref('/rooms').child(this.roomId).child(peer.id).child(this.localPeerId).child('callerICE').on("child_added", onCallerICE);
-          // Listening for remote ICE candidates above
+          // Listening for remote ICE candidates above 
 
         }).catch((error) => {
           console.error("CAUGHT" + error);
@@ -308,7 +302,7 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
     navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true
-    }).then(stream => {
+    }).then((stream: MediaStream) => {
       this.localStream = stream;
       //this.localVideoRef.nativeElement.autoplay = true;
       // Seems this has to be set by code to work :
@@ -319,24 +313,6 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       console.error("CAUGHT" + error);
     });
   }
-
-  // create(): void {
-  //   const id = this.roomId;
-  //   firebase.database().ref('/rooms').child(id).remove()
-  //     .then(() => {
-  //       console.log("Remove succeeded.")
-
-  //       const peerId = RoomComponent.uuidv4();
-  //       this.localPeerId = peerId;
-  //       console.log(`_peerId=(${peerId})`);
-  //       firebase.database().ref('/rooms').child(id).child('peers').push().set({ id: peerId });
-
-  //       this.listen();
-  //     })
-  //     .catch((error) => {
-  //       console.log("Remove failed: " + error.message)
-  //     });
-  // }
 
   static deletePeerFromDBList(roomId: string, id: string) {
     var query = firebase.database().ref("/rooms").child(roomId).child('peers').orderByKey();
@@ -382,14 +358,8 @@ export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
       firebase.database().ref('/rooms').child(this.roomId).child('peers').off('child_added', this.on_child_added);
     }
 
-    // while (this.peerConnections.length) {
-    //   var peerConnection = this.peerConnections.pop();
-    //   peerConnection.close();
-    // }
     // REPLACED BY :
-    // empty peers
-    //this.peers.length = 0;
-    // closing rtcPeerConnection in the meantime
+    // empty peers, closing rtcPeerConnection in the meantime
     while (this.peers.length) {
       const peer = this.peers.pop();
       if (peer.rtcPeerConnection) {

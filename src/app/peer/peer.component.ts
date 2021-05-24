@@ -51,7 +51,6 @@ export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
     RoomComponent.registerPeerConnectionListeners(this.peerConnection, this.peerId);
 
     // listen to name change
-
     this.onName = (snapshot: any) => {
       this.name = snapshot.val();
     }
@@ -70,7 +69,7 @@ export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.peerConnection.addEventListener('track', event => {
       console.log('Got remote track Event:', this.peerId, event.streams[0]);
-      event.streams[0].getTracks().forEach(track => {
+      event.streams[0].getTracks().forEach((track: MediaStreamTrack) => {
         // Note seems to be called twice more as necessary (4 instead of 2)
         // but getTracks().length display shows 1, 2, 2, 2 which indicates
         // that a same track is not duplicated.
@@ -80,13 +79,16 @@ export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
       });
     });
 
-    // Code for creating a room below
     const offerOption: RTCOfferOptions = <RTCOfferOptions>{ offerToReceiveAudio: true, offerToReceiveVideo: true };
-    this.peerConnection.createOffer(offerOption).then(offer => {
-      this.peerConnection.setLocalDescription(offer).then().catch((error) => {
+    this.peerConnection.createOffer(offerOption).then((offer: RTCSessionDescriptionInit) => {
+
+      console.log('Created offer:', offer);
+
+      this.peerConnection.setLocalDescription(offer).then(() => {
+        console.log("setLocalDescription(offer) done");
+      }).catch((error) => {
         console.error("setLocalDescription(offer) CAUGHT : " + error);
       });
-      console.log('Created offer:', offer);
 
       const db_offer = {
         type: offer.type,
@@ -112,7 +114,7 @@ export class PeerComponent implements OnInit, AfterViewInit, OnDestroy {
           });
         }
       };
-      firebase.database().ref(`/rooms/${this.roomId}/${this.localPeerId}/${this.peerId}/answer`).on("value", this.onAnswer, (errorObject) => {
+      firebase.database().ref(`/rooms/${this.roomId}/${this.localPeerId}/${this.peerId}/answer`).on("value", this.onAnswer, (errorObject: any) => {
         console.log("The read failed: " + errorObject.code);
       });
       // Listening for remote session description above
