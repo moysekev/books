@@ -14,17 +14,17 @@ import 'firebase/firestore';
 export class RoomComponent implements OnInit, AfterViewInit, OnDestroy {
 
   static
-    configuration = {
-      iceServers: [
-        {
-          urls: [
-            'stun:stun1.l.google.com:19302',
-            'stun:stun2.l.google.com:19302',
-          ],
-        },
-      ],
-      iceCandidatePoolSize: 10,
-    };
+  configuration = {
+    iceServers: [
+      {
+        urls: [
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302',
+        ],
+      },
+    ],
+    iceCandidatePoolSize: 10,
+  };
 
   @ViewChild("localVideo") localVideoRef: ElementRef;
 
